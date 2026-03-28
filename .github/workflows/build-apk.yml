@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build GREEN Android APK
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -31,30 +31,61 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Init Capacitor Android
-        run: |
-          npx cap add android || true
-          npx cap sync android
+      - name: Add Android platform
+        run: npx cap add android || true
 
-      - name: Build debug APK
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Lock portrait orientation
+        run: |
+          FILE="android/app/src/main/AndroidManifest.xml"
+          sed -i 's/android:screenOrientation="[^"]*"/android:screenOrientation="portrait"/g' $FILE || true
+          grep -q 'screenOrientation' $FILE || sed -i 's/<activity/<activity android:screenOrientation="portrait"/g' $FILE
+
+      - name: Build release APK (unsigned)
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon -x lint
+
+      - name: Sign APK with debug keystore
+        run: |
+          cd android
+          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/zipalign -v -p 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            app/build/outputs/apk/release/GREEN-aligned.apk
+          keytool -genkey -v -keystore green.jks -alias green -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=GREEN, OU=Game, O=GenGeneSix, L=Accra, ST=Greater Accra, C=GH" \
+            -storepass greenpass -keypass greenpass -noprompt
+          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/apksigner sign \
+            --ks green.jks --ks-key-alias green --ks-pass pass:greenpass --key-pass pass:greenpass \
+            --out app/build/outputs/apk/release/GREEN.apk \
+            app/build/outputs/apk/release/GREEN-aligned.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GREEN-debug.apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          name: GREEN.apk
+          path: android/app/build/outputs/apk/release/GREEN.apk
+          retention-days: 90
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: "GREEN v1.0.${{ github.run_number }}"
-          body: "Cyberpunk Neon Tetris — Download and install the APK"
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          name: "GREEN v1.0.${{ github.run_number }} — Cyberpunk Tetris"
+          body: |
+            ## GREEN — Retro Keypad Tetris
+            
+            ### Install on Android:
+            1. Download **GREEN.apk**
+            2. On your phone: Settings → Security → Allow unknown sources
+            3. Tap the downloaded APK to install
+            
+            ### Controls:
+            - **▲** Rotate | **◀▶** Move | **▼** Soft drop
+            - **DROP** Hard drop | **HOLD** Hold piece | **PAUSE** Pause
+          files: android/app/build/outputs/apk/release/GREEN.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
