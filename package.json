@@ -1,0 +1,13 @@
+{
+  "name": "green-game",
+  "version": "1.0.0",
+  "description": "GREEN — Cyberpunk Neon Tetris",
+  "scripts": {
+    "build": "echo built"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  }
+}

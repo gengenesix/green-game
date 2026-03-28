@@ -1,0 +1,6 @@
+{
+  "appId": "com.gengenesix.green",
+  "appName": "GREEN",
+  "webDir": "www",
+  "server": { "androidScheme": "https" }
+}
